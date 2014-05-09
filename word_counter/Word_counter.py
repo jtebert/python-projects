@@ -2,15 +2,17 @@
 import re
 import sys
 import operator
+import numpy as np
 import matplotlib.pyplot as plt
 
 class Word_counter:
     def __init__(self, input_file, num_common_words):
         self.input_file = input_file
-        sit = String_iterator(input_file)
-        self.word_map = self.build_map(sit)
+        text_it = String_iterator(input_file)
+        self.text = text_it.words
+        self.word_map = self.build_map(text_it)
         self.num_common_words = num_common_words
-        self.num_strings = len(sit.words)
+        self.num_strings = len(text_it.words)
     
     # Build a map/dictionary of the words and number of occurrences
     def build_map(self, sit):
@@ -48,23 +50,48 @@ class Word_counter:
             str(self.get_percent(pair[1])) + "%)"
         
     # Plot the distribution of word frequency (for all words >.1% of total num)
+    # TODO : Change y-axis to % instead of number of occurrences
     def plot_words_freq(self):
         thresh_num = self.num_strings * .1/100.0
-        print thresh_num
         num_occurrences = self.word_map.values()
         num_occurrences.sort()
         num_occurrences.reverse()
         num_occurrences = filter(lambda x: x > thresh_num, num_occurrences)
         ind = range(len(num_occurrences))
-        width = 1.0
         fig, ax = plt.subplots()
-        rects = ax.bar(ind, num_occurrences, width, color='r',edgecolor='none')
+        rects = ax.bar(ind, num_occurrences, width=1, color='b',edgecolor='none')
         #Add labels, etc.
         ax.set_title('Distribution of Word Commonality')
         ax.set_ylabel('Number of Occurrences')
         ax.set_xlabel('Word Usage Order')
         ax.set_xlim(xmax=len(num_occurrences))
-        plt.show()
+        plt.draw()
+        
+    # Plot distribution of a word in the text file (Like Kindle x-ray feature)
+    # Current simple version: basically a histogram
+    def word_xray(self, word):
+        word = word.lower()
+        #num_text_divs = 500
+        #text_div_size = self.num_strings / num_text_divs
+        text_div_size = 250
+        text_divs = range(0, self.num_strings, text_div_size)
+        num_occurrences = []
+        for i in text_divs:
+            snippet = self.text[i:i + text_div_size]
+            count = len(filter(lambda s: s == word, snippet))
+            num_occurrences.append(count)
+        occurred = [min(x, 1) for x in num_occurrences]
+        # Create plot
+        ind = np.linspace(0, 1, num=len(num_occurrences))
+        width = ind[1]-ind[0]
+        fig, ax = plt.subplots()
+        rects = ax.bar(ind, occurred, width, color='r', edgecolor='none')
+        ax.set_title('Distribution of "' + word + '" in text')
+        ax.set_xlabel('Text Progression')
+        ax.set_xlim((0, 1))
+        ax.get_yaxis().set_visible(False)
+        ax.set_aspect(.2)
+        plt.draw()
         
     # Get percent of total words this numWords is
     def get_percent(self, num_words):
@@ -90,7 +117,6 @@ class String_iterator:
         # This filter is changing the indexing and messing things up, I think
         self.words = filter(None, self.words)
         self.words = map(lambda x:x.lower(), self.words)
-        #print self.words
         self.ind = 0
         self.size = len(self.words)
         
@@ -120,14 +146,15 @@ else:
 # Create the counter
 counter = Word_counter(filename, num_words)
 
-#Print the results
+# Print the results
 print "Total words in file: " + str(counter.num_strings)
 print "Unique words in file: " + str(len(counter.word_map))
 print str(counter.num_common_words) + " most used word" + counter.add_s() + ":"
 for pair in counter.commonest_words(counter.num_common_words):
     counter.print_word_info(pair)
-    
-# Graph frequency:
-# Commonality index (int) vs. number of occurrences (just sorted word_map values)
-counter.plot_words_freq()
 
+# Graphs:
+counter.plot_words_freq()
+if len(sys.argv) >= 4:
+    counter.word_xray(sys.argv[3])
+plt.show()
