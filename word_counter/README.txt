@@ -1,3 +1,6 @@
+[ There is currently also a fully functional Java implementation here, but my
+  goal is to convert the project completely to Python. Mostly for practice. ]
+
 This Python program is designed to calculate word usage statistics on a text
 document:
 - Total words in the file

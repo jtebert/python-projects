@@ -1,1 +1,4 @@
 test.txt
+test.txt~
+.gitignore
+bfg.jar
