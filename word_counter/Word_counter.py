@@ -2,6 +2,7 @@
 import re
 import sys
 import operator
+import matplotlib.pyplot as plt
 
 class Word_counter:
     def __init__(self, input_file, num_common_words):
@@ -29,7 +30,7 @@ class Word_counter:
         maxima = occurs[num_vals - k : num_vals]
         return maxima
     
-    # Return a dict with the k most common words & num of occurrences
+    # Return a list of tuples with the k most common words & num of occurrences
     def commonest_words(self, k):
         max_occurrences = self.get_max_occurs(k)
         common_words = {}
@@ -45,6 +46,25 @@ class Word_counter:
     def print_word_info(self, pair):
         print "\t" + pair[0] + "\t" + str(pair[1]) + "\t(" + \
             str(self.get_percent(pair[1])) + "%)"
+        
+    # Plot the distribution of word frequency (for all words >.1% of total num)
+    def plot_words_freq(self):
+        thresh_num = self.num_strings * .1/100.0
+        print thresh_num
+        num_occurrences = self.word_map.values()
+        num_occurrences.sort()
+        num_occurrences.reverse()
+        num_occurrences = filter(lambda x: x > thresh_num, num_occurrences)
+        ind = range(len(num_occurrences))
+        width = 1.0
+        fig, ax = plt.subplots()
+        rects = ax.bar(ind, num_occurrences, width, color='r',edgecolor='none')
+        #Add labels, etc.
+        ax.set_title('Distribution of Word Commonality')
+        ax.set_ylabel('Number of Occurrences')
+        ax.set_xlabel('Word Usage Order')
+        ax.set_xlim(xmax=len(num_occurrences))
+        plt.show()
         
     # Get percent of total words this numWords is
     def get_percent(self, num_words):
@@ -109,5 +129,5 @@ for pair in counter.commonest_words(counter.num_common_words):
     
 # Graph frequency:
 # Commonality index (int) vs. number of occurrences (just sorted word_map values)
-
+counter.plot_words_freq()
 
