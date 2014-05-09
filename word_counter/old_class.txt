@@ -1,3 +1,0 @@
-./WordCounter$1.class
-./StringIterator.class
-./WordCounter.class
