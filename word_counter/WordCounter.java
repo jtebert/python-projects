@@ -85,7 +85,6 @@ public class WordCounter {
             }
         }
         Map<String, Integer> sortedByNum = WordCounter.sortByValue(commonWords);
-        //Collections.sort(commonWords);
         return sortedByNum;
     }
     
