@@ -1,4 +1,4 @@
-This Python project is and API or simulator for genetics.
+This Python project is an API or simulator for genetics.
 
 Current functionality:
 - Create single- and double-stranded DNA molecules with blunt or sticky ends
