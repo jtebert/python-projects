@@ -1,4 +1,4 @@
-[Requires matplotlib]
+[Requires matplotlib and numpy]
 
 This Python program is designed to calculate word usage statistics on a text
 document:
