@@ -7,27 +7,39 @@ t = Nucleotide("T")
 g = Nucleotide("G")
 n = Nucleotide("")
 
+enz_a_t = Restriction_enzyme([a,t], 1)
+enz__at = Restriction_enzyme([a,t], 0)
+
+class _tests(unittest.TestCase):
+    
+    def test_find_sub_list(self):
+        self.assertEqual(find_sub_list(['a','t'],['c','a','t']), 1)
+        self.assertEqual(find_sub_list(['c'],['c','a','t']), 0)
+        self.assertEqual(find_sub_list([c],[c,a,t]), 0)
+        self.assertEqual(find_sub_list([a,t],[c,a,t]), 1)
+        self.assertEqual(find_sub_list([a,t],[c,c,c,a,t]), 3)
+        self.assertEqual(find_sub_list([a,t],[a,t,c,c,c,a,t]), 0)
+
 class Nucleotide_tests(unittest.TestCase):
     
     def test_is_complementary(self):
-        self.setUp();
-        self.failUnless(a.is_complementary(t))
-        self.failUnless(g.is_complementary(c))
-        self.failIf(c.is_complementary(t))
-        self.failUnless(n.is_complementary(t))
-        self.failUnless(a.is_complementary(n))
+        self.assertTrue(a.is_complementary(t))
+        self.assertTrue(g.is_complementary(c))
+        self.assertFalse(c.is_complementary(t))
+        self.assertTrue(n.is_complementary(t))
+        self.assertTrue(a.is_complementary(n))
         
     def test_is_empty(self):
-        self.failIf(a.is_empty())
-        self.failUnless(n.is_empty())
+        self.assertFalse(a.is_empty())
+        self.assertTrue(n.is_empty())
         
     def test_pair(self):
-        self.failUnless(a.pair() == t)
-        self.failUnless(g.pair() == c)
-        self.failUnless(n.pair() == n)
-        self.failIf(a.pair() == n)
-        self.failIf(n.pair() == t)
-        self.failIf(a.pair() == g)
+        self.assertEqual(a.pair(), t)
+        self.assertEqual(g.pair(), c)
+        self.assertEqual(n.pair(), n)
+        self.assertNotEqual(a.pair(), n)
+        self.assertNotEqual(n.pair(), t)
+        self.assertNotEqual(a.pair(), g)
         
 class Single_strand_tests(unittest.TestCase):
 
@@ -41,31 +53,55 @@ class Single_strand_tests(unittest.TestCase):
         self.nnac = Single_strand('  ac')
         self.actgn = Single_strand('actg ')
         self.actgac = Single_strand('actgac')
+        self.cat = Single_strand('cat')
+        self.at = Single_strand('at')
+        self.atat = Single_strand('atat')
+    
+    def test_split(self):
+        self.assertEqual(self.actg.split(0), [Single_strand(''), self.actg])
+        self.assertEqual(self.actg.split(4), [self.actg, Single_strand('')])
+        self.assertEqual(self.actg.split(2), \
+            [Single_strand('ac'), Single_strand('tg')])
     
     def test_reverse_strand(self):
-        self.failUnless(self.ca.reverse_strand() == self.ac)
-        self.failUnless(self.actg.reverse_strand() == self.gtca)
-        self.failIf(self.actg.reverse_strand() == self.cagt)
-        self.failIf(self.actg.reverse_strand() == self.ca)
+        self.assertEqual(self.ca.reverse_strand(), self.ac)
+        self.assertEqual(self.actg.reverse_strand(), self.gtca)
+        self.assertNotEqual(self.actg.reverse_strand(), self.cagt)
+        self.assertNotEqual(self.actg.reverse_strand(), self.ca)
     
     def test_is_complementary(self):
-        self.failUnless(self.actg.is_complementary(self.cagt))
-        self.failIf(self.actg.is_complementary(self.ca))
-        self.failIf(self.actg.is_complementary(self.gtca))
-        self.failIf(self.actg.is_complementary(self.tgac))
+        self.assertTrue(self.actg.is_complementary(self.cagt))
+        self.assertFalse(self.actg.is_complementary(self.ca))
+        self.assertFalse(self.actg.is_complementary(self.gtca))
+        self.assertFalse(self.actg.is_complementary(self.tgac))
+        
+    def test_is_palindromic(self):
+        self.assertFalse(self.actg.is_palindromic())
+        self.assertFalse(Single_strand('aat').is_palindromic())
+        self.assertTrue(Single_strand('aatt').is_palindromic())
+        self.assertFalse(self.nnac.is_palindromic())
         
     def test_remove_empties(self):
-        self.failUnless(self.actg.remove_empties() == self.actg)
-        self.failUnless(self.nnac.remove_empties() == self.ac)
-        self.failUnless(self.actgn.remove_empties() == self.actg)
+        self.assertEqual(self.actg.remove_empties(), self.actg)
+        self.assertEqual(self.nnac.remove_empties(), self.ac)
+        self.assertEqual(self.actgn.remove_empties(), self.actg)
         
     def test_ligate(self):
-        self.failUnless(self.actg.ligate(self.ac) == self.actgac)
-        self.failUnless(self.actg.ligate(self.nnac) == self.actgac)
-        self.failUnless(self.actgn.ligate(self.ac) == self.actgac)
+        self.assertEqual(self.actg.ligate(self.ac), self.actgac)
+        self.assertEqual(self.actg.ligate(self.nnac), self.actgac)
+        self.assertEqual(self.actgn.ligate(self.ac), self.actgac)
         
-    # TODO : Write tests once the method is written
-    # def test_restrict(self):
+    def test_restrict(self):
+        self.assertEqual(self.actg.restrict(enz_a_t), [self.actg])
+        self.assertEqual(self.cat.restrict(enz_a_t), \
+            [Single_strand('ca'), Single_strand('t')])
+        self.assertEqual(self.at.restrict(enz_a_t), \
+            [Single_strand('a'), Single_strand('t')])
+        #self.assertEqual(self.at.restrict(enz__at), [self.at])
+        self.assertEqual(self.atat.restrict(enz_a_t), \
+            [Single_strand('a'), Single_strand('ta'), Single_strand('t')])
+        #self.assertEqual(self.atat.restrict(enz__at), [self.at, self.at])
+        
     
 class Double_strand_test(unittest.TestCase):
     
@@ -77,44 +113,60 @@ class Double_strand_test(unittest.TestCase):
         self.cca_ngg = Double_strand('cca', ' gg')
         self.na_tt = Double_strand(Single_strand([n,a]), 'tt')
         
+    def test_split(self):
+        self.assertEqual(self.actg.split(0), [Double_strand(''), self.actg])
+        self.assertEqual(self.actg.split(4), [self.actg, Double_strand('')])
+        self.assertEqual(self.actg.split(2), \
+            [Double_strand('ac'), Double_strand('tg')])
+    
     def test_strand53(self):
-        self.failUnless(self.actg.strand53() == Single_strand('actg'))
-        self.failUnless(self.ca.strand53() == Single_strand('ca'))
-        self.failUnless(self.actg.strand53() == self.actg_cagt.strand53())
+        self.assertEqual(self.actg.strand53(), Single_strand('actg'))
+        self.assertEqual(self.ca.strand53(), Single_strand('ca'))
+        self.assertEqual(self.actg.strand53(), self.actg_cagt.strand53())
     
     def test_strand35(self):
-        self.failUnless(self.actg.strand35() == Single_strand('cagt'))
-        self.failUnless(self.ca.strand35() == Single_strand('tg'))
-        self.failUnless(self.actg.strand35() == self.actg_cagt.strand35())
+        self.assertEqual(self.actg.strand35(), Single_strand('cagt'))
+        self.assertEqual(self.ca.strand35(), Single_strand('tg'))
+        self.assertEqual(self.actg.strand35(), self.actg_cagt.strand35())
         
     def test_anneal(self):
-        self.failUnless(self.actg.anneal() == \
+        self.assertEqual(self.actg.anneal(), \
             [Single_strand('actg'), Single_strand('cagt')])
-        self.failUnless(self.ca.anneal() == \
+        self.assertEqual(self.ca.anneal(), \
             [Single_strand('ca'), Single_strand('tg')])
-        self.failUnless(self.ca_nn.anneal() == \
+        self.assertEqual(self.ca_nn.anneal(), \
             [Single_strand('ca'), Single_strand('  ')])
-        self.failUnless(self.na_tt.anneal() == \
+        self.assertEqual(self.na_tt.anneal(), \
             [Single_strand([n,a]), Single_strand('tt')])
             
-    def test_flip(self):
-        self.failUnless(self.actg.flip() == Double_strand('cagt'))
-        self.failUnless(self.ca.flip() == Double_strand('tg'))
-        self.failUnless(self.cca_ngg.flip() == \
+    def test_rotate(self):
+        self.assertEqual(self.actg.rotate(), Double_strand('cagt'))
+        self.assertEqual(self.ca.rotate(), Double_strand('tg'))
+        self.assertEqual(self.cca_ngg.rotate(), \
             Double_strand(' gg', 'cca'))
-        self.actg.draw_ladder()
-        self.cca_ngg.draw_ladder()
-        self.ca_nn.draw_ladder()
+            
+    def test_overhang_5(self):
+        self.assertEqual(self.actg.overhang_5(), [Double_strand(""), self.actg])
+        self.assertEqual(self.na_tt.overhang_5(), \
+            [Double_strand(' ',"t"), Double_strand('a')])
+        self.assertEqual(self.ca_nn.overhang_5(), [self.ca_nn, Double_strand('')])
+        
+    def test_overhang_3(self):
+        self.assertEqual(self.actg.overhang_3(), [self.actg, Double_strand("")])
+        self.assertEqual(self.ca_nn.overhang_3(), [Double_strand(''), self.ca_nn])
+        self.assertEqual(self.na_tt.overhang_3(), [self.na_tt, Double_strand("")])
+        self.assertEqual(self.cca_ngg.overhang_3(),
+             [Double_strand('cc'), Double_strand('a',' ')])
     
     def test_ligate(self):
-        #self.failIf(self.actg.ligate(self.ca))
-        #self.failIf(self.ca_nn.ligate(self.na_tt))
-        self.failUnless(self.actg.ligate(self.ca) == Double_strand('actgca'))
-        self.failUnless(self.ca_nn.ligate(Double_strand('  ', 'tg')) \
-            == Double_strand('ca'))
+        self.assertFalse(self.actg.ligate(self.ca_nn))
+        self.assertFalse(self.ca_nn.ligate(self.na_tt))
+        self.assertEqual(self.actg.ligate(self.ca), Double_strand('actgca'))
+        self.assertEqual(self.ca_nn.ligate(Double_strand('  ', 'tg')), \
+            Double_strand('ca'))
         atn_cat = Double_strand(Single_strand([a,t,n]), 'cat')
         gcc_ggn = Double_strand('gcc', 'gg ')
-        self.failUnless(atn_cat.ligate(gcc_ggn) == Double_strand('atgcc'))
+        self.assertEqual(atn_cat.ligate(gcc_ggn), Double_strand('atgcc'))
     
     Double_strand(Single_strand([n,n,n,c,a,t,g,a,t,a,a]), \
                   Single_strand([n,n,a,t,c,a,t,g,t,t,a])).draw_ladder()

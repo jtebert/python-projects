@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import operator
-import unittest
+import random
 
 def andmap(b,L):
     return reduce(operator.and_, [b(x) for x in L])
@@ -12,37 +12,60 @@ def ormap(b,L):
 # TODO : Allow non-complementary double strand creation (perhaps with warning?)
 # TODO : Ligation with different rotations
 
+def find_sub_list(sl,l):
+    sll=len(sl)
+    if sll > len(l): return False
+    for ind in (i for i,e in enumerate(l) if e==sl[0]):
+        if l[ind:ind+sll]==sl:
+            return ind
+        else:
+            return False
+
+def process_strand(strand):
+    """Get a list of Nucleotides from various input types and verify correctness
+       of input.
+       String OR List<Nucleotide> OR Single_strand -> List<Nucleotide>"""
+    if isinstance(strand, str):
+        strand = list(strand)
+        return map(lambda b: Nucleotide(b), strand)
+    elif isinstance(strand, Single_strand):
+        return strand.bases
+    elif isinstance(strand, list) and \
+        len(filter(lambda b: not isinstance(b, Nucleotide), strand))==0:
+        return strand
+    else:
+        raise ValueError("Invalid input to create DNA molecule: " + str(type(strand))) 
+
 class Restriction_enzyme(object):
-    """Abstract class representing DNA restriction enzymes"""
-    __metaclass__ = ABCMeta
+    """Represents a restriction enzyme to cut DNA"""
+    
+    def __init__(self, recog_site, cut_site):
+        """Constructor for restriciton enzyme
+           List<Nucleotide> int -> Restriction_enzyme"""
+        self.recog_site = recog_site
+        self.cut_site = cut_site
     
     def __eq__(self, other):
         """Override equals method"""
         if isinstance(other, Restriction_enzyme):
-            return self.rec_site == other.rec_site and \
+            return self.recog_site == other.recog_site and \
                  self.cut_site == other.cut_site
         else:
             return False
+            
+    def __len__(self):
+        return len(self.recog_site)
     
-    @property
-    def rec_site(self):
-        """The DNA sequence requised to cut (5' -> 3' direction)
-           Must be palindromic (pair with itself on the other strand
-           List<Nucleotide>"""
-        raise NotImplementedError("Need to implement rec_site field")
-    
-    @property
-    def cut_site(self):
-        """The part of rec_site from the beginning to the location to cut
-           List<Nucleotide>"""
-        raise NotImplementedError("Need to implement cut_site field")
-        
-    @abstractmethod
-    def foo(self):
-        """Dummy example method"""
-        raise NotImplementedError("Need to implement foo method")
+    def __str__(self):
+        """Override string method"""
+        out = '<'
+        for i in range(len(self)):
+            if i == self.cut_site:
+                out += "|"
+            out = out + str(self.recog_site[i])
+        return out + '>'
 
-class Nucleotide:
+class Nucleotide(object):
     """Concrete class representing A, C, T, or G base"""
     
     base_matches = {'A':'T', 'T':'A', 'C':'G', 'G':'C', '':''}
@@ -90,22 +113,7 @@ class Nucleotide:
            -> Nucleotide"""
         return Nucleotide(self.base_matches[self.base])
         
-def process_strand(strand):
-    """Get a list of Nucleotides from various input types and verify correctness
-       of input.
-       String OR List<Nucleotide> OR Single_strand -> List<Nucleotide>"""
-    if isinstance(strand, str):
-        strand = list(strand)
-        return map(lambda b: Nucleotide(b), strand)
-    elif isinstance(strand, Single_strand):
-        return strand.bases
-    elif isinstance(strand, list) and \
-        len(filter(lambda b: not isinstance(b, Nucleotide), strand))==0:
-        return strand
-    else:
-        ValueError("Invalid input to create DNA molecule: " + str(type(strand))) 
-        
-class Single_strand:
+class Single_strand(object):
     """Represents a single stranded DNA molecule"""
     
     def __init__(self, bases):
@@ -121,7 +129,24 @@ class Single_strand:
     
     def __str__(self):
         """Override string method"""
-        return self.bases.__str__()
+        out = '['
+        for b in self.bases: out += str(b)
+        return out + ']'
+        
+    def __repr__(self):
+        return str(self)
+        
+    def __len__(self):
+        return len(self.bases)
+        
+    def split(self, ind):
+        """Split the DNA into two single strands (with blunt ends) before the
+           given ind.  0 <= ind <= size(self)
+           int -> List<Single_strand>"""
+        fragments = []
+        fragments.append(Single_strand(self.bases[0:ind]))
+        fragments.append(Single_strand(self.bases[ind:len(self)]))
+        return fragments
     
     def reverse_strand(self):
         """Reverse the strand into 3' -> 5' order (for annealing purposes)
@@ -140,6 +165,13 @@ class Single_strand:
         else:
             pairs = zip(self.bases, ss.reverse_strand().bases)
             return andmap(lambda p: p[0].is_complementary(p[1]), pairs)
+            
+    def is_palindromic(self):
+        """Is the sequence palindromic? (second half self-complimentary)
+        -> Boolean"""
+        paired = Double_strand(self)
+        match_strands = paired.anneal()
+        return match_strands[0] == match_strands[1]
     
     def remove_empties(self):
         """Remove empty bases from the strand
@@ -156,28 +188,43 @@ class Single_strand:
         return Single_strand(self_clean_bases)
         
     def restrict(self, enzyme):
-        """Cut the strand into pieces if it has the rec_site
+        """Cut the strand into pieces if it has the recog_site
            Restriction_enzyme -> Single_strand or List<DNAmol>"""
-        # TODO : Write this
+        recog_ind = find_sub_list(enzyme.recog_site, self.bases)
+        print self
+        print type(recog_ind)
+        if not recog_ind is False:
+            temp_segments = self.split(recog_ind + enzyme.cut_site)
+            print temp_segments
+            all_segments = [temp_segments[0]]
+            other_segments = temp_segments[1].restrict(enzyme)
+            all_segments.extend(other_segments)
+            return all_segments
+        else:
+            return [self]
         
-class Double_strand:
+class Double_strand(object):
     """Represents a double-stranded DNA molecule with a list of tuples"""
     
     def __init__(self, strand1, strand2 = None):
         """Create a double strand of DNA from a string or list
            String OR Single_strand OR List<Nucleotide> -> Double_strand"""
-        strand1 = process_strand(strand1)
-        if strand2 is None:
-            strand2 = map(lambda b: b.pair(), strand1)
-            strand2.reverse()
+        if isinstance(strand1, list) and \
+            len(filter(lambda b: not isinstance(b, tuple), strand1))==0:
+            self.base_pairs = strand1
         else:
-            strand2 = process_strand(strand2)
-        if Single_strand(strand1).is_complementary(Single_strand(strand2)):
-            strand2.reverse()
-            base_pairs = zip(strand1, strand2)
-            self.base_pairs = base_pairs
-        else:
-            raise ValueError("Input strands are not complementary")
+            strand1 = process_strand(strand1)
+            if strand2 is None:
+                strand2 = map(lambda b: b.pair(), strand1)
+                strand2.reverse()
+            else:
+                strand2 = process_strand(strand2)
+            if Single_strand(strand1).is_complementary(Single_strand(strand2)):
+                strand2.reverse()
+                base_pairs = zip(strand1, strand2)
+                self.base_pairs = base_pairs
+            else:
+                raise ValueError("Input strands are not complementary")
         
     def __eq__(self, other):
         """Override equals method"""
@@ -188,12 +235,41 @@ class Double_strand:
     
     def __str__(self):
         """Override the string method"""
-        return self.base_pairs.__str__()
+        out = '['
+        for b in self.base_pairs:
+            out = out + str(b[0]) + str(b[1]) + " "
+        return out[0:-1] + ']'
         
+    def __repr__(self):
+        return str(self)
+        
+    def __len__(self):
+        return len(self.base_pairs)
+    
+    @staticmethod
+    def random_dna(n):
+        """Generate a string of n random base pairs of DNA.
+           No empty bases, blunt ends"""
+        bases = ['a','c','t','g']
+        rand_inds = [random.randint(0,len(bases)-1) for _ in range(n)]
+        rand_bases = map(lambda i: bases[i], rand_inds)
+        str_bases = "".join(rand_bases)
+        return Double_strand(str_bases)
+    
+    def split(self, ind):
+        """Split the DNA into two double strands (with blunt ends) before the
+           given ind.  0 <= ind <= size(self)
+           int -> List<DoubleStrand>"""
+        fragments = []
+        fragments.append(Double_strand(self.base_pairs[0:ind]))
+        fragments.append(Double_strand(self.base_pairs[ind:len(self)]))
+        return fragments
+    
     def strand53(self):
         """Get the 5'->3' strand out of the double strand
            -> Single_strand"""
         strands = zip(*self.base_pairs);
+        if len(strands) == 0: strands = [[],[]]
         new_strand = list(strands[0])
         return Single_strand(new_strand)
         
@@ -201,7 +277,8 @@ class Double_strand:
         """Get the 3'->5' strand out of the double strand
            Reverses it so that it ends up in the 5'->3' direction
            -> Single_strand"""
-        strands = zip(*self.base_pairs);
+        strands = zip(*self.base_pairs)
+        if len(strands) == 0: strands = [[],[]]
         new_strand = list(strands[1])
         return Single_strand(new_strand).reverse_strand()
         
@@ -211,38 +288,94 @@ class Double_strand:
            -> Genome"""
         return [self.strand53(), self.strand35()]
         
-    def flip(self):
+    def rotate(self):
         """Rotate the Double_strand 180 deg (still 5'->3' but change which
            strand is on top
            -> Double_strand"""
         new_strands = self.anneal()
         return Double_strand(new_strands[1], new_strands[0])
         
+    def overhang_5(self):
+        """Return list of the overhang at the start of the double strand (5'
+           end of leading strand) and paired portion
+           -> List<Double_strand>"""
+        nonempty_inds = [i for i, b in enumerate(self.base_pairs) if \
+            (not b[0].is_empty() and not b[1].is_empty())]
+        if len(nonempty_inds) == 0:
+            split_ind = len(self)
+        else:
+            split_ind = nonempty_inds[0]
+        split_strands = self.split(split_ind)
+        return split_strands
+    
     def overhang_3(self):
-        """Return the 3' overhang at the end of the double strand
-           -> Single_strand"""
-       # TODO : I don't know what the goal of this even is anymore. Which end?
+        """Return list of the paired portion and the overhang at the end of 
+           the double strand (3' end of the leading strand, in 5'->3' direction)
+           -> DoubleStrand"""
+        nonempty_inds = [i for i, b in enumerate(self.base_pairs) if \
+            (not b[0].is_empty() and not b[1].is_empty())]
+        if len(nonempty_inds) == 0:
+            split_ind = 0
+        else:
+            split_ind = nonempty_inds[-1] + 1
+        split_strands = self.split(split_ind)
+        return split_strands
+        
+        tail = []
+        bases = self.base_pairs[::-1]
+        i = 0;
+        while i < len(bases) and \
+            (bases[i][0].is_empty() or bases[i][1].is_empty()):
+            tail.append(bases[i])
+            i += 1
+        tail.reverse()
+        if len(tail) == 0:
+            tail_strands = [[],[]]
+        else:
+            tail_strands = map(lambda s: list(s), zip(*tail))
+        return Double_strand(tail_strands[0], tail_strands[1])
         
     def ligate(self, ds):
         """Turn 2 fragments into 1, if ends match, or return false
            Assumes both strands are in the 5'->3' direction
-           Currently set up so to only ligate ds to end of self (no flipping)
+           Currently set up so to only ligate ds to end of self (no rotation)
            (There are 3 other combinations)
            Double_strand -> Double_strand OR false"""
-        # TODO : Allow non-complementary (letters but not connecting)
-        # Might be good to make use of appending single strands and checking if complementary
-        # Try combining at both ends
-        split_self = self.anneal()
-        split_ds = ds.anneal()
-        new53 = split_self[0].ligate(split_ds[0])
-        #print "53: " + str(new53)
-        new35 = split_ds[1].ligate(split_self[1])
-        #print "35: " + str(new35)
-        if new53.is_complementary(new35):
-            # create new double strand
-            return Double_strand(new53, new35)
+        # Get overhang_3 of self
+        self_overhang_3 = self.overhang_3()
+        self_body = self_overhang_3[0]
+        self_tail3 = self_overhang_3[1]
+        # Get overhang_5 of ds
+        ds_overhang_5 = ds.overhang_5()
+        ds_tail5 = ds_overhang_5[0]
+        ds_body = ds_overhang_5[1]
+        # Anneal and ligate ds_tail to end of self_tail
+        self_tail3 = self_tail3.anneal()
+        ds_tail5 = ds_tail5.anneal()
+        overlap_53 = self_tail3[0].ligate(ds_tail5[0])
+        overlap_35 = self_tail3[1].ligate(ds_tail5[1])
+        # Remove empties
+        overlap_53 = overlap_53.remove_empties()
+        overlap_35 = overlap_35.remove_empties()
+        # Check if 2 strands are complementary
+        if overlap_53.is_complementary(overlap_35):
+            # Combine if they are (into DS)
+            overlap = Double_strand(overlap_53, overlap_35)
+            # stick together all 3 pieces
+            new_body = []
+            new_body.extend(self_body.base_pairs)
+            new_body.extend(overlap.base_pairs)
+            new_body.extend(ds_body.base_pairs)
+            return Double_strand(new_body)
         else:
             return False
+    
+    def restrict(self, enzyme):
+        """Cut the double stranded DNA at all restriction sites and produce a
+           list of the fragments (may have sticky ends)
+           Restriction_enzyme -> List<Double_strand>"""
+        # Find restriction site on leading strand
+        # Figure out range that needs to be considered 
             
     def draw_ladder(self):
         """Draw an ASCII art DNA ladder"""
@@ -265,5 +398,5 @@ class Double_strand:
         print "\t" + ladderL + "    " + ladderR
             
 
-
+#Double_strand.random_dna(10000).draw_ladder()
 
