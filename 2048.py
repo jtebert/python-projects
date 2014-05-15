@@ -8,7 +8,7 @@ if not pygame.font:
 
 # Constants
 ROWS = 4 # Number of rows in the grid
-SZ = 50  # Drawing size (pixels) of the board
+SZ = 60  # Drawing size (pixels) of the board
 num_val = 5
 change_color = [0. + x*(255.-0.)/num_val for x in range(num_val)]
 blues = map(lambda c: (c, c, 255), change_color)
@@ -18,6 +18,8 @@ colors = blues + greens + reds
 vals = [2**(x+1) for x in range(num_val*3)]
 COLOR_DICT = dict(zip(vals, colors))
 ARROWS = [K_LEFT, K_RIGHT, K_UP, K_DOWN]
+
+HIGHSCORE_FILE = 'highscore.txt'
 
 main_dir = os.path.split(os.path.abspath(__file__))[0]
 
@@ -40,6 +42,7 @@ class Board(object):
     def __init__(self):
         '''Create a new empty Board'''
         self.grid = Board.empty_grid()
+        self.score = 0
     
     @staticmethod        
     def empty_grid():
@@ -75,35 +78,53 @@ class Board(object):
         '''Return whether or not every cell on the board is filled'''
         return len(self.free_cells()) == 0
         
-    def draw_tiles(self, bg):
+    def draw_tiles(self):
         '''Draw all of the tiles/values in the grid'''
+        bg = pygame.Surface((SZ*ROWS, SZ*ROWS))
+        bg.fill((255,255,255))
         for row in range(ROWS):
             for col in range(ROWS):
                 self.draw_tile(row, col, bg)
-                
-    def rotate(self):
-        '''Rotate the grid (swap rows and columns)'''
-        new_grid = Board.empty_grid()
-        for row_ind in range(ROWS):
-            for col_ind in range(ROWS):
-                new_grid[col_ind][row_ind] = self.grid[row_ind][col_ind]
-        self.grid = new_grid
+        return bg
     
     def draw_tile(self, row, col, bg):
         '''Draw the tile with the given coordinates onto the background'''
         # Create the image of the tile
         val = self.grid[row][col]
+        tile = pygame.Surface((SZ, SZ))
         if val:
-            tile = pygame.Surface((SZ, SZ))
             tile.fill(COLOR_DICT[val])
             font = pygame.font.Font(None, 36)
             text = font.render(str(val), 1, (0,0,0))
             textpos = text.get_rect()
             textpos.center = tile.get_rect().center
             tile.blit(text, textpos)
-            pygame.draw.rect(tile, (255,255,255), tile.get_rect(), 2)
-            # Place tile at the correct coordinates
-            bg.blit(tile, (col*SZ, row*SZ))
+        else:
+            tile.fill((200,200,200))
+        pygame.draw.rect(tile, (255,255,255), tile.get_rect(), 2)
+        bg.blit(tile, (col*SZ, row*SZ))
+        
+    def draw_some_score(self, high_score):
+        '''Draw the score onto the background with its descriptor at the correct
+        relative vertical position pos (0-1)'''
+        bg = pygame.Surface((SZ*ROWS, 2*SZ))
+        bg.fill((255,255,255))
+        font = pygame.font.Font(None, 32)
+        text = font.render("Score: " + str(self.score), 1, (0,0,0))
+        text2 = "High Score: " + str(high_score)
+        textpos = text.get_rect()
+        textpos.left = SZ * .1
+        textpos.centery = bg.get_rect().centery
+        bg.blit(text, textpos)
+        return bg
+        
+    def transpose(self):
+        '''Transpose the grid (swap rows and columns)'''
+        new_grid = Board.empty_grid()
+        for row_ind in range(ROWS):
+            for col_ind in range(ROWS):
+                new_grid[col_ind][row_ind] = self.grid[row_ind][col_ind]
+        self.grid = new_grid
             
     def shift_right(self):
         '''Shift the tiles to the right and do any merging'''
@@ -116,17 +137,17 @@ class Board(object):
     def shift_down(self):
         '''Shift the tiles down and do any merging'''
         old_tiles = self.grid
-        self.rotate()
+        self.transpose()
         self.shift_right()
-        self.rotate()
+        self.transpose()
         return old_tiles
         
     def shift_up(self):
         '''Shift the tiles up and do any merging'''
         old_tiles = self.grid
-        self.rotate()
+        self.transpose()
         self.shift_left()
-        self.rotate()
+        self.transpose()
         return old_tiles
             
     def shift_left(self):
@@ -157,39 +178,64 @@ class Board(object):
         for col_ind in range(ROWS-1):
             if merged == False and row[col_ind] == row[col_ind + 1] and row[col_ind] != 0:
                 merged = True
-                row[col_ind] = row[col_ind] + row[col_ind + 1]
+                add = row[col_ind] + row[col_ind + 1]
+                self.score += add
+                row[col_ind] = add
                 row[col_ind + 1] = 0
         return row
     
     def highest_tile(self):
         '''Return the value of the highest tile in the board'''
         return max(max(self.grid))
+        
+def load_high_score(filename):
+    '''Load the high score. Return it or 0 if no such file'''
+    try:
+        f = open(filename, 'r')
+    except Exception:
+        return 0
+    score = f.read()
+    try:
+        score =  int(score)
+    except ValueError:
+        score = 0
+    return score
+    f.close()
+    
+def save_high_score(filename, score):
+    '''Save the high score'''
+    try:
+        f = open(filename, 'w')
+    except Exception:
+        print 'Warning: Failed to save high score'
+    f.write(str(score))
+    f.close()
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((SZ*ROWS, SZ*ROWS))
+    screen = pygame.display.set_mode((SZ*ROWS, SZ*(ROWS+2)))
     pygame.display.set_caption('2048')
     
     # Background
     background = pygame.Surface(screen.get_size())
     background = background.convert()
     background.fill((255,255,255))
-    
     screen.blit(background, (0,0))
     pygame.display.flip()
     
     tiles = Board();
-    
     tiles.add_tile()
     tiles.add_tile()
     
     game_over = False
     game_won = False
     
+    high_score = load_high_score(HIGHSCORE_FILE)
+    
     while not game_over:
-        
         for event in pygame.event.get():
             if event.type == QUIT:
+                save_high_score(HIGHSCORE_FILE, high_score)
                 return
             elif event.type == MOUSEBUTTONDOWN:
                 tiles.add_tile()
@@ -203,15 +249,31 @@ def main():
                 if event.key == K_UP:
                     old_tiles = tiles.shift_up()
                 # Check for changes to game state
-                if old_tiles != tiles.grid and event.key in ARROWS:
+                if event.key in ARROWS and old_tiles != tiles.grid:
                     tiles.add_tile()
+                # Need to fix this ending condition
                 if tiles.is_full() and old_tiles == tiles.grid:
                     game_over = True
         if tiles.highest_tile >= 2048:
             game_won = True
+        high_score = max(high_score, tiles.score)
         
         screen.blit(background, (0,0))
-        tiles.draw_tiles(screen)
+        screen.blit(tiles.draw_tiles(), (0,2*SZ))
+        screen.blit(tiles.draw_some_score(high_score), (0,0))
+        pygame.display.flip()
+    
+    font = pygame.font.Font(None, 48)
+    text = font.render("GAME OVER", 1, (0,0,0))
+    textpos = text.get_rect()
+    textpos.center = screen.get_rect().center
+    screen.blit(text, textpos)
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                save_high_score(HIGHSCORE_FILE, high_score)
+                return
         pygame.display.flip()
 
 if __name__ == '__main__': main()
